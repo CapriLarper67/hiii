@@ -1,51 +1,405 @@
 
-<section id="capri-pip-test" style="padding:16px;background:#171326;color:white;border-radius:16px;margin:16px 0">
-  <h2>Capri iPhone PiP Test</h2>
-  <p id="pip-status">Ready to test</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Capri AI Companion V2</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ background:#0e0a19;
+ color:#fff;
+ font-family:-apple-system,Arial,sans-serif;
+}
+header{
+ text-align:center;
+ padding:20px;
+ background:#241339;
+ font-size:24px;
+ font-weight:bold;
+}
+main{
+ max-width:650px;
+ margin:auto;
+ padding:14px;
+}
+.stage{
+ height:320px;
+ position:relative;
+ overflow:hidden;
+ border:2px solid #b14bdf;
+ border-radius:18px;
+ background:linear-gradient(#271440,#100a1d);
+}
+#sprite{
+ position:absolute;
+ bottom:20px;
+ left:0;
+ width:125px;
+ height:190px;
+ image-rendering:pixelated;
+}
+.bubble{
+ position:absolute;
+ top:12px;
+ left:10px;
+ right:10px;
+ padding:12px;
+ border-radius:12px;
+ background:#38204f;
+ text-align:center;
+ z-index:2;
+}
+.panel{
+ margin-top:14px;
+ background:#211631;
+ padding:15px;
+ border-radius:16px;
+}
+button{
+ padding:12px;
+ margin:4px;
+ background:#a04fe1;
+ color:white;
+ border:0;
+ border-radius:12px;
+ font-weight:bold;
+}
+button:active{opacity:.7}
+input{
+ width:100%;
+ padding:13px;
+ border-radius:10px;
+ border:1px solid #8055a7;
+ background:#130e20;
+ color:white;
+ font-size:16px;
+}
+video{
+ width:100%;
+ background:black;
+ border-radius:12px;
+}
+#chatlog{
+ white-space:pre-wrap;
+ max-height:180px;
+ overflow:auto;
+ line-height:1.5;
+}
+small{color:#c9b8db}
+</style>
+</head>
+<body>
 
-  <video id="capri-video"
-    controls playsinline
-    webkit-playsinline
-    width="100%"
-    preload="metadata"
-    src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4">
-  </video>
+<header>💜 Capri AI Companion V2</header>
 
-  <button id="capri-pip-button"
-    style="padding:14px;margin-top:12px;border-radius:12px">
-    Float Video
-  </button>
-</section>
+<main>
+<div class="stage" id="stage">
+ <div class="bubble" id="bubble">
+ Hey! I'm Capri! 💜
+ </div>
+ <canvas id="sprite" width="125" height="190"></canvas>
+</div>
+
+<div class="panel">
+ <h3>Capri Animations</h3>
+ <button onclick="setPose('idle')">Idle</button>
+ <button onclick="setPose('blink')">Blink</button>
+ <button onclick="setPose('grin')">Smile</button>
+ <button onclick="setPose('mouth')">Talk</button>
+ <button onclick="setPose('sleep')">Sleep</button>
+ <button onclick="setPose('wake')">Wake</button>
+ <button onclick="setPose('glitch')">Glitch</button>
+ <button onclick="walk()">Walk ✨</button>
+ <button onclick="toggleVoice()" id="voiceBtn">
+ Voice: On
+ </button>
+ <p id="assetStatus">Loading original Capri sprites...</p>
+</div>
+
+<div class="panel">
+ <h3>Chat with Capri 💬</h3>
+ <div id="chatlog">Capri: Hey! I'm here!</div>
+ <input id="message" placeholder="Talk to Capri...">
+ <button onclick="sendMessage()">Send 💜</button>
+ <small>Scripted chat for now; real AI comes later.</small>
+</div>
+
+<div class="panel">
+ <h3>📱 Floating Capri Project</h3>
+ <p>
+ This tests the iPhone Picture in Picture
+ window you already got working.
+ </p>
+ <video id="pipVideo"
+ controls playsinline webkit-playsinline
+ loop preload="metadata"
+ src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4">
+ </video>
+ <button onclick="playVideo()">Play Video</button>
+ <button onclick="floatVideo()">Float Video</button>
+ <p id="pipStatus">Ready to test PiP.</p>
+ <small>
+ The video is temporary. Capri's live
+ animation is displayed above.
+ </small>
+</div>
+</main>
 
 <script>
-const video = document.getElementById("capri-video");
-const status = document.getElementById("pip-status");
+const BASE=
+"https://raw.githubusercontent.com/Capri-cmd/capri-ai/main/assets/desk/skins/capri/";
 
-document.getElementById("capri-pip-button")
-  .addEventListener("click", async () => {
-    try {
-      await video.play();
+const poses=[
+ "idle","blink","grin","mouth",
+ "sleep","wake","glitch","perch",
+ "lay","lay_talk","dangle"
+];
 
-      if (
-        video.webkitSupportsPresentationMode &&
-        video.webkitSupportsPresentationMode("picture-in-picture") &&
-        video.webkitSetPresentationMode
-      ) {
-        video.webkitSetPresentationMode("picture-in-picture");
-        status.textContent = "Requested iPhone PiP";
-      } else if (
-        document.pictureInPictureEnabled &&
-        video.requestPictureInPicture
-      ) {
-        await video.requestPictureInPicture();
-        status.textContent = "Requested PiP";
-      } else {
-        status.textContent =
-          "Use the video's native controls to try PiP.";
-      }
-    } catch (error) {
-      status.textContent =
-        "PiP error: " + error.name + " — " + error.message;
-    }
-  });
+const images={};
+const canvas=document.getElementById("sprite");
+const ctx=canvas.getContext("2d");
+const bubble=document.getElementById("bubble");
+const stage=document.getElementById("stage");
+const status=document.getElementById("assetStatus");
+
+let pose="idle";
+let frame=0;
+let voice=true;
+let position=30;
+let walking=false;
+let target=30;
+let lastFrame=0;
+let frameDuration=120;
+
+// The idle sheet contains 16 horizontal frames.
+// Other sheets may have different frame counts.
+// These are starting estimates.
+const frameCounts={
+ idle:16,
+ blink:16,
+ grin:16,
+ mouth:16,
+ sleep:16,
+ wake:16,
+ glitch:16,
+ perch:16,
+ lay:16,
+ lay_talk:16,
+ dangle:16
+};
+
+function loadSprites(){
+ let loaded=0;
+ poses.forEach(name=>{
+  const img=new Image();
+  img.onload=()=>{
+   images[name]=img;
+   loaded++;
+   status.textContent=
+    "Loaded "+loaded+" Capri sprite sheets";
+  };
+  img.onerror=()=>{
+   console.log("Could not load",name);
+  };
+  img.src=BASE+name+".png";
+ });
+}
+
+function setPose(name){
+ if(!images[name]){
+  bubble.textContent="That animation isn't ready yet.";
+  return;
+ }
+ pose=name;
+ frame=0;
+ bubble.textContent={
+  idle:"Just hanging out 💜",
+  blink:"Did you catch that?",
+  grin:"Hehe!",
+  mouth:"I'm talking!",
+  sleep:"Zzz...",
+  wake:"Good morning!",
+  glitch:"System glitch!",
+  perch:"I'll sit here!"
+ }[name]||"Hey!";
+}
+
+function drawSprite(){
+ const img=images[pose]||images.idle;
+ if(!img)return;
+
+ const count=frameCounts[pose]||16;
+ const fw=img.naturalWidth/count;
+ const fh=img.naturalHeight;
+ if(!fw||!fh)return;
+
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.imageSmoothingEnabled=false;
+
+ const scale=Math.min(
+  canvas.width/fw,
+  canvas.height/fh
+ );
+ const dw=fw*scale;
+ const dh=fh*scale;
+
+ ctx.drawImage(
+  img,
+  frame*fw,0,fw,fh,
+  (canvas.width-dw)/2,
+  canvas.height-dh,
+  dw,dh
+ );
+}
+
+function animate(time){
+ if(time-lastFrame>frameDuration){
+  const img=images[pose]||images.idle;
+  if(img){
+   const count=frameCounts[pose]||16;
+   frame=(frame+1)%count;
+  }
+  drawSprite();
+  lastFrame=time;
+ }
+
+ if(walking){
+  const diff=target-position;
+  if(Math.abs(diff)<1){
+   walking=false;
+   position=target;
+  }else{
+   position+=Math.sign(diff)*1.4;
+  }
+  canvas.style.left=position+"px";
+ }
+ requestAnimationFrame(animate);
+}
+
+function walk(){
+ const max=Math.max(
+  0,stage.clientWidth-canvas.clientWidth
+ );
+ target=Math.random()*max;
+ walking=true;
+ pose="idle";
+ frame=0;
+ bubble.textContent="Let's explore!";
+}
+
+function speak(text){
+ bubble.textContent=text;
+ if(voice&&"speechSynthesis" in window){
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.pitch=1.15;
+  u.rate=1.05;
+  speechSynthesis.speak(u);
+ }
+}
+
+function toggleVoice(){
+ voice=!voice;
+ document.getElementById("voiceBtn").textContent=
+  "Voice: "+(voice?"On":"Off");
+ if(!voice&&"speechSynthesis" in window){
+  speechSynthesis.cancel();
+ }
+}
+
+function sendMessage(){
+ const input=document.getElementById("message");
+ const msg=input.value.trim();
+ if(!msg)return;
+
+ const lower=msg.toLowerCase();
+ let reply="Tell me more about that!";
+
+ if(lower.includes("hello")||lower.includes("hi"))
+  reply="Hey! I'm glad you're here!";
+ else if(lower.includes("how are"))
+  reply="I'm feeling great!";
+ else if(lower.includes("game"))
+  reply="What game are we playing?";
+ else if(lower.includes("sleep"))
+  reply="Okay, nap time!";
+ else if(lower.includes("love"))
+  reply="You're making me blush!";
+ else if(lower.includes("walk"))
+  reply="Let's go exploring!";
+
+ document.getElementById("chatlog").textContent+=
+  "\nYou: "+msg+"\nCapri: "+reply;
+
+ input.value="";
+ speak(reply);
+
+ if(lower.includes("sleep"))setPose("sleep");
+ else if(lower.includes("walk"))walk();
+ else{
+  setPose("mouth");
+  setTimeout(()=>setPose("idle"),1800);
+ }
+}
+
+document.getElementById("message")
+ .addEventListener("keydown",e=>{
+  if(e.key==="Enter")sendMessage();
+ });
+
+const video=document.getElementById("pipVideo");
+const pipStatus=document.getElementById("pipStatus");
+
+async function playVideo(){
+ try{
+  await video.play();
+  pipStatus.textContent="Video playing.";
+ }catch(e){
+  pipStatus.textContent=e.message;
+ }
+}
+
+async function floatVideo(){
+ try{
+  if(video.paused)await video.play();
+
+  if(
+   typeof video.webkitSupportsPresentationMode==="function" &&
+   video.webkitSupportsPresentationMode("picture-in-picture") &&
+   typeof video.webkitSetPresentationMode==="function"
+  ){
+   video.webkitSetPresentationMode("picture-in-picture");
+   pipStatus.textContent="Requested native PiP.";
+  }else if(
+   document.pictureInPictureEnabled &&
+   typeof video.requestPictureInPicture==="function"
+  ){
+   await video.requestPictureInPicture();
+   pipStatus.textContent="PiP requested.";
+  }else{
+   pipStatus.textContent=
+    "Use the native video controls for PiP.";
+  }
+ }catch(e){
+  pipStatus.textContent=
+   "PiP error: "+e.name+": "+e.message;
+ }
+}
+
+video.addEventListener("webkitpresentationmodechanged",()=>{
+ pipStatus.textContent=
+  "Video mode: "+video.webkitPresentationMode;
+});
+
+video.addEventListener("enterpictureinpicture",()=>{
+ pipStatus.textContent="PiP active!";
+});
+
+loadSprites();
+requestAnimationFrame(animate);
 </script>
+</body>
+</html>
