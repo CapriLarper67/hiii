@@ -1,404 +1,359 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Capri AI Companion V2</title>
+<title>Capri V3 — Living Companion</title>
 <style>
 *{box-sizing:border-box}
 body{
- margin:0;
- background:#0e0a19;
- color:#fff;
- font-family:-apple-system,Arial,sans-serif;
+ margin:0;background:#090713;color:white;
+ font-family:system-ui;text-align:center
 }
 header{
- text-align:center;
- padding:20px;
- background:#241339;
- font-size:24px;
- font-weight:bold;
+ padding:18px;color:#ff438d;
+ font-size:24px;font-weight:800
 }
-main{
- max-width:650px;
- margin:auto;
- padding:14px;
+#room{
+ width:min(94vw,560px);
+ aspect-ratio:16/10;
+ margin:10px auto;
+ background:#140d1c;
+ border:1px solid #66305d;
+ border-radius:20px;
+ overflow:hidden
 }
-.stage{
- height:320px;
- position:relative;
- overflow:hidden;
- border:2px solid #b14bdf;
- border-radius:18px;
- background:linear-gradient(#271440,#100a1d);
-}
-#sprite{
- position:absolute;
- bottom:20px;
- left:0;
- width:125px;
- height:190px;
+canvas{
+ width:100%;height:100%;
+ display:block;
  image-rendering:pixelated;
+ touch-action:manipulation
 }
-.bubble{
- position:absolute;
- top:12px;
- left:10px;
- right:10px;
- padding:12px;
- border-radius:12px;
- background:#38204f;
- text-align:center;
- z-index:2;
-}
-.panel{
- margin-top:14px;
- background:#211631;
- padding:15px;
- border-radius:16px;
-}
+#status{color:#ff9dcb;font-size:14px;margin:12px}
+#speech{min-height:50px;padding:12px;color:#ffc0df}
 button{
- padding:12px;
- margin:4px;
- background:#a04fe1;
- color:white;
- border:0;
- border-radius:12px;
- font-weight:bold;
+ background:#d72a75;color:white;
+ border:0;border-radius:12px;
+ padding:14px 18px;
+ margin:6px;font-weight:bold
 }
-button:active{opacity:.7}
-input{
- width:100%;
- padding:13px;
- border-radius:10px;
- border:1px solid #8055a7;
- background:#130e20;
- color:white;
- font-size:16px;
+#pipVideo{
+ position:absolute;width:2px;height:2px;
+ opacity:.01;pointer-events:none
 }
-video{
- width:100%;
- background:black;
- border-radius:12px;
-}
-#chatlog{
- white-space:pre-wrap;
- max-height:180px;
- overflow:auto;
- line-height:1.5;
-}
-small{color:#c9b8db}
+small{display:block;color:#aaa;margin:18px}
 </style>
 </head>
 <body>
-
-<header>💜 Capri AI Companion V2</header>
-
-<main>
-<div class="stage" id="stage">
- <div class="bubble" id="bubble">
- Hey! I'm Capri! 💜
- </div>
- <canvas id="sprite" width="125" height="190"></canvas>
+<header>✦ CAPRI V3 ✦</header>
+<div id="room">
+<canvas id="scene" width="640" height="400"></canvas>
 </div>
-
-<div class="panel">
- <h3>Capri Animations</h3>
- <button onclick="setPose('idle')">Idle</button>
- <button onclick="setPose('blink')">Blink</button>
- <button onclick="setPose('grin')">Smile</button>
- <button onclick="setPose('mouth')">Talk</button>
- <button onclick="setPose('sleep')">Sleep</button>
- <button onclick="setPose('wake')">Wake</button>
- <button onclick="setPose('glitch')">Glitch</button>
- <button onclick="walk()">Walk ✨</button>
- <button onclick="toggleVoice()" id="voiceBtn">
- Voice: On
- </button>
- <p id="assetStatus">Loading original Capri sprites...</p>
-</div>
-
-<div class="panel">
- <h3>Chat with Capri 💬</h3>
- <div id="chatlog">Capri: Hey! I'm here!</div>
- <input id="message" placeholder="Talk to Capri...">
- <button onclick="sendMessage()">Send 💜</button>
- <small>Scripted chat for now; real AI comes later.</small>
-</div>
-
-<div class="panel">
- <h3>📱 Floating Capri Project</h3>
- <p>
- This tests the iPhone Picture in Picture
- window you already got working.
- </p>
- <video id="pipVideo"
- controls playsinline webkit-playsinline
- loop preload="metadata"
- src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4">
- </video>
- <button onclick="playVideo()">Play Video</button>
- <button onclick="floatVideo()">Float Video</button>
- <p id="pipStatus">Ready to test PiP.</p>
- <small>
- The video is temporary. Capri's live
- animation is displayed above.
- </small>
-</div>
-</main>
+<div id="status">Capri is waking up...</div>
+<div id="speech">♡</div>
+<button id="pip">Float Capri</button>
+<button id="talk">Talk to Capri</button>
+<video id="pipVideo" autoplay muted playsinline></video>
+<small>Your living Capri companion ♡</small>
 
 <script>
+const canvas=document.getElementById("scene");
+const ctx=canvas.getContext("2d");
+const status=document.getElementById("status");
+const speech=document.getElementById("speech");
+const video=document.getElementById("pipVideo");
+
+ctx.imageSmoothingEnabled=false;
+
 const BASE=
 "https://raw.githubusercontent.com/Capri-cmd/capri-ai/main/assets/desk/skins/capri/";
 
-const poses=[
- "idle","blink","grin","mouth",
- "sleep","wake","glitch","perch",
- "lay","lay_talk","dangle"
-];
+const configs={
+ idle:16,
+ blink:4,
+ blink_glitch:4,
+ grin:16,
+ glitch:10,
+ dangle:24,
+ perch:16,
+ perch_blink:4,
+ perch_blink_glitch:4,
+ lay:1,
+ lay_awake:1,
+ lay_talk:1,
+ lay_talk2:1,
+ sleep:16,
+ wake:16
+};
 
 const images={};
-const canvas=document.getElementById("sprite");
-const ctx=canvas.getContext("2d");
-const bubble=document.getElementById("bubble");
-const stage=document.getElementById("stage");
-const status=document.getElementById("assetStatus");
+let loaded=0;
+
+for(const name of Object.keys(configs)){
+ const img=new Image();
+ img.onload=()=>loaded++;
+ img.onerror=()=>console.log("Missing:",name);
+ img.src=BASE+name+".png";
+ images[name]=img;
+}
 
 let pose="idle";
 let frame=0;
-let voice=true;
-let position=30;
-let walking=false;
-let target=30;
-let lastFrame=0;
-let frameDuration=120;
+let frameTime=0;
+let x=320;
+let targetX=320;
+let energy=85;
+let mood=75;
+let clock=0;
+let actionEnd=0;
+let resting=false;
+let sleeping=false;
+let last=performance.now();
 
-// The idle sheet contains 16 horizontal frames.
-// Other sheets may have different frame counts.
-// These are starting estimates.
-const frameCounts={
- idle:16,
- blink:16,
- grin:16,
- mouth:16,
- sleep:16,
- wake:16,
- glitch:16,
- perch:16,
- lay:16,
- lay_talk:16,
- dangle:16
-};
-
-function loadSprites(){
- let loaded=0;
- poses.forEach(name=>{
-  const img=new Image();
-  img.onload=()=>{
-   images[name]=img;
-   loaded++;
-   status.textContent=
-    "Loaded "+loaded+" Capri sprite sheets";
-  };
-  img.onerror=()=>{
-   console.log("Could not load",name);
-  };
-  img.src=BASE+name+".png";
- });
+function say(message){
+ speech.textContent=message;
 }
 
-function setPose(name){
- if(!images[name]){
-  bubble.textContent="That animation isn't ready yet.";
-  return;
- }
+function choose(items){
+ return items[Math.floor(Math.random()*items.length)];
+}
+
+function setPose(name,duration=2000){
+ const img=images[name];
+ if(!img || !img.naturalWidth)name="idle";
  pose=name;
  frame=0;
- bubble.textContent={
-  idle:"Just hanging out 💜",
-  blink:"Did you catch that?",
-  grin:"Hehe!",
-  mouth:"I'm talking!",
-  sleep:"Zzz...",
-  wake:"Good morning!",
-  glitch:"System glitch!",
-  perch:"I'll sit here!"
- }[name]||"Hey!";
+ frameTime=0;
+ actionEnd=clock+duration;
+ status.textContent=
+ "Capri • "+name.replaceAll("_"," ");
 }
 
-function drawSprite(){
- const img=images[pose]||images.idle;
- if(!img)return;
+function action(){
+ const r=Math.random();
 
- const count=frameCounts[pose]||16;
+ if(sleeping){
+  if(r<.7){
+   setPose("sleep",5000);
+   return;
+  }
+  sleeping=false;
+  resting=false;
+  energy=65;
+  setPose("wake",2400);
+  say("Mmm... I'm awake ♡");
+  return;
+ }
+
+ if(energy<15){
+  sleeping=true;
+  resting=true;
+  setPose("sleep",8000);
+  say("Just a little nap...");
+  return;
+ }
+
+ if(resting){
+  if(r<.3){
+   resting=false;
+   setPose("wake",1800);
+  }else if(r<.6){
+   setPose(choose(["lay","lay_awake"]),4000);
+  }else{
+   setPose(choose(["lay_talk","lay_talk2"]),2500);
+   say(choose([
+    "I'm comfy here.",
+    "Still here with you ♡",
+    "What are you doing?"
+   ]));
+  }
+  return;
+ }
+
+ if(r<.20){
+  targetX=100+Math.random()*440;
+  setPose("idle",3000);
+ }else if(r<.36){
+  setPose("blink",650);
+ }else if(r<.48){
+  setPose("grin",2200);
+  mood=Math.min(100,mood+3);
+ }else if(r<.56){
+  setPose("glitch",1100);
+ }else if(r<.68){
+  setPose("perch",4500);
+ }else if(r<.76){
+  setPose("perch_blink",900);
+ }else if(r<.83){
+  setPose("dangle",3600);
+ }else if(r<.91){
+  resting=true;
+  setPose("lay",5000);
+ }else{
+  setPose("idle",3000);
+ }
+
+ energy=Math.max(0,energy-1.5);
+}
+
+function renderSprite(){
+ const img=images[pose];
+ if(!img || !img.naturalWidth)return;
+
+ const count=configs[pose]||1;
  const fw=img.naturalWidth/count;
  const fh=img.naturalHeight;
- if(!fw||!fh)return;
+ const index=frame%count;
 
- ctx.clearRect(0,0,canvas.width,canvas.height);
- ctx.imageSmoothingEnabled=false;
+ const wide=[
+  "lay","lay_awake",
+  "lay_talk","lay_talk2"
+ ].includes(pose);
 
- const scale=Math.min(
-  canvas.width/fw,
-  canvas.height/fh
- );
+ const maxW=wide?560:180;
+ const maxH=wide?240:285;
+
+ const scale=Math.min(maxW/fw,maxH/fh);
  const dw=fw*scale;
  const dh=fh*scale;
 
+ const px=wide?320:x;
+ const py=wide?360:365;
+
  ctx.drawImage(
-  img,
-  frame*fw,0,fw,fh,
-  (canvas.width-dw)/2,
-  canvas.height-dh,
-  dw,dh
+  img,index*fw,0,fw,fh,
+  px-dw/2,py-dh,dw,dh
  );
 }
 
-function animate(time){
- if(time-lastFrame>frameDuration){
-  const img=images[pose]||images.idle;
-  if(img){
-   const count=frameCounts[pose]||16;
-   frame=(frame+1)%count;
-  }
-  drawSprite();
-  lastFrame=time;
+function draw(now){
+ const dt=Math.min(now-last,80);
+ last=now;
+ clock+=dt;
+ frameTime+=dt;
+
+ ctx.clearRect(0,0,640,400);
+ ctx.fillStyle="#140d1c";
+ ctx.fillRect(0,0,640,400);
+ ctx.fillStyle="#2c1830";
+ ctx.fillRect(0,370,640,30);
+ ctx.fillStyle="#ff2c82";
+ ctx.fillRect(0,369,640,2);
+
+ if(frameTime>110){
+  frame++;
+  frameTime=0;
  }
 
- if(walking){
-  const diff=target-position;
-  if(Math.abs(diff)<1){
-   walking=false;
-   position=target;
-  }else{
-   position+=Math.sign(diff)*1.4;
-  }
-  canvas.style.left=position+"px";
+ if(clock>actionEnd)action();
+
+ if(!resting&&!sleeping&&pose==="idle"){
+  x+=(targetX-x)*Math.min(.04,dt*.0007);
  }
- requestAnimationFrame(animate);
+
+ renderSprite();
+
+ if(loaded===0){
+  ctx.fillStyle="#ff8ab7";
+  ctx.font="18px system-ui";
+  ctx.fillText("Loading Capri...",245,190);
+ }
+
+ requestAnimationFrame(draw);
 }
 
-function walk(){
- const max=Math.max(
-  0,stage.clientWidth-canvas.clientWidth
- );
- target=Math.random()*max;
- walking=true;
- pose="idle";
- frame=0;
- bubble.textContent="Let's explore!";
-}
+requestAnimationFrame(draw);
 
-function speak(text){
- bubble.textContent=text;
- if(voice&&"speechSynthesis" in window){
+canvas.addEventListener("click",()=>{
+ energy=Math.min(100,energy+10);
+ mood=Math.min(100,mood+5);
+ sleeping=false;
+ resting=false;
+
+ setPose(choose([
+  "grin","blink",
+  "blink_glitch",
+  "perch_blink_glitch"
+ ]),1700);
+
+ say(choose([
+  "Hey you! ♡",
+  "You found me!",
+  "Hehe~",
+  "I was thinking about you."
+ ]));
+});
+
+document.addEventListener("visibilitychange",()=>{
+ if(!document.hidden){
+  energy=Math.min(100,energy+5);
+  say("Welcome back ♡");
+  setPose("grin",1600);
+ }
+});
+
+document.getElementById("talk").onclick=()=>{
+ sleeping=false;
+ resting=false;
+ setPose("grin",2400);
+
+ const msg=choose([
+  "Hey! I'm Capri.",
+  "I like being here with you.",
+  "What should we do next?",
+  "You have my attention!"
+ ]);
+
+ say(msg);
+
+ if("speechSynthesis" in window){
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
-  u.pitch=1.15;
-  u.rate=1.05;
-  speechSynthesis.speak(u);
+  const voice=new SpeechSynthesisUtterance(msg);
+  voice.rate=1.08;
+  voice.pitch=1.3;
+  speechSynthesis.speak(voice);
  }
-}
+};
 
-function toggleVoice(){
- voice=!voice;
- document.getElementById("voiceBtn").textContent=
-  "Voice: "+(voice?"On":"Off");
- if(!voice&&"speechSynthesis" in window){
-  speechSynthesis.cancel();
- }
-}
+let stream;
 
-function sendMessage(){
- const input=document.getElementById("message");
- const msg=input.value.trim();
- if(!msg)return;
-
- const lower=msg.toLowerCase();
- let reply="Tell me more about that!";
-
- if(lower.includes("hello")||lower.includes("hi"))
-  reply="Hey! I'm glad you're here!";
- else if(lower.includes("how are"))
-  reply="I'm feeling great!";
- else if(lower.includes("game"))
-  reply="What game are we playing?";
- else if(lower.includes("sleep"))
-  reply="Okay, nap time!";
- else if(lower.includes("love"))
-  reply="You're making me blush!";
- else if(lower.includes("walk"))
-  reply="Let's go exploring!";
-
- document.getElementById("chatlog").textContent+=
-  "\nYou: "+msg+"\nCapri: "+reply;
-
- input.value="";
- speak(reply);
-
- if(lower.includes("sleep"))setPose("sleep");
- else if(lower.includes("walk"))walk();
- else{
-  setPose("mouth");
-  setTimeout(()=>setPose("idle"),1800);
- }
-}
-
-document.getElementById("message")
- .addEventListener("keydown",e=>{
-  if(e.key==="Enter")sendMessage();
- });
-
-const video=document.getElementById("pipVideo");
-const pipStatus=document.getElementById("pipStatus");
-
-async function playVideo(){
+document.getElementById("pip").onclick=async()=>{
  try{
+  if(!canvas.captureStream)
+   throw Error("Canvas streaming unavailable");
+
+  if(!stream){
+   stream=canvas.captureStream(24);
+   video.srcObject=stream;
+  }
+
   await video.play();
-  pipStatus.textContent="Video playing.";
- }catch(e){
-  pipStatus.textContent=e.message;
- }
-}
-
-async function floatVideo(){
- try{
-  if(video.paused)await video.play();
 
   if(
-   typeof video.webkitSupportsPresentationMode==="function" &&
-   video.webkitSupportsPresentationMode("picture-in-picture") &&
-   typeof video.webkitSetPresentationMode==="function"
+   !video.webkitSupportsPresentationMode ||
+   !video.webkitSupportsPresentationMode(
+    "picture-in-picture"
+   )
   ){
-   video.webkitSetPresentationMode("picture-in-picture");
-   pipStatus.textContent="Requested native PiP.";
-  }else if(
-   document.pictureInPictureEnabled &&
-   typeof video.requestPictureInPicture==="function"
-  ){
-   await video.requestPictureInPicture();
-   pipStatus.textContent="PiP requested.";
-  }else{
-   pipStatus.textContent=
-    "Use the native video controls for PiP.";
+   throw Error("PiP unsupported for this video");
   }
- }catch(e){
-  pipStatus.textContent=
-   "PiP error: "+e.name+": "+e.message;
+
+  video.webkitSetPresentationMode(
+   "picture-in-picture"
+  );
+
+  say("I'm floating! ♡");
+
+ }catch(error){
+  say("PiP unavailable: "+error.message);
  }
-}
+};
 
-video.addEventListener("webkitpresentationmodechanged",()=>{
- pipStatus.textContent=
-  "Video mode: "+video.webkitPresentationMode;
-});
-
-video.addEventListener("enterpictureinpicture",()=>{
- pipStatus.textContent="PiP active!";
-});
-
-loadSprites();
-requestAnimationFrame(animate);
+setTimeout(()=>{
+ say("Hi! I'm Capri ♡");
+ setPose("idle",2500);
+},1000);
 </script>
 </body>
 </html>
