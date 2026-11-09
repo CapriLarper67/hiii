@@ -16,4 +16,55 @@ document.querySelector('#voice').onclick=e=>{voice=!voice;e.target.textContent='
 document.querySelector('#chat').onsubmit=e=>{e.preventDefault();let input=document.querySelector('#message'),t=input.value.trim();if(!t)return;log.textContent='You: '+t;input.value='';let r=/hello|hey|hi/i.test(t)?'Hey! Great to see you!':/name/i.test(t)?'I am your Capri-style prototype companion.':/walk|move/i.test(t)?'Watch me go!':/how are/i.test(t)?'Feeling electric today!':'You said: '+t+'. I can only use simple responses until we connect an AI service.';if(/walk|move/i.test(t))walk();say(r)};
 setInterval(walk,4500);
 document.querySelector('#pip').onclick=()=>alert('This web prototype does not implement Picture in Picture. A later native/video experiment would be needed, and iOS may restrict it.');
-</script></body></html>
+</script>
+<section id="capri-pip-test" style="padding:16px;background:#171326;color:white;border-radius:16px;margin:16px 0">
+  <h2>Capri iPhone PiP Test</h2>
+  <p id="pip-status">Ready to test</p>
+
+  <video id="capri-video"
+    controls playsinline
+    webkit-playsinline
+    width="100%"
+    preload="metadata"
+    src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4">
+  </video>
+
+  <button id="capri-pip-button"
+    style="padding:14px;margin-top:12px;border-radius:12px">
+    Float Video
+  </button>
+</section>
+
+<script>
+const video = document.getElementById("capri-video");
+const status = document.getElementById("pip-status");
+
+document.getElementById("capri-pip-button")
+  .addEventListener("click", async () => {
+    try {
+      await video.play();
+
+      if (
+        video.webkitSupportsPresentationMode &&
+        video.webkitSupportsPresentationMode("picture-in-picture") &&
+        video.webkitSetPresentationMode
+      ) {
+        video.webkitSetPresentationMode("picture-in-picture");
+        status.textContent = "Requested iPhone PiP";
+      } else if (
+        document.pictureInPictureEnabled &&
+        video.requestPictureInPicture
+      ) {
+        await video.requestPictureInPicture();
+        status.textContent = "Requested PiP";
+      } else {
+        status.textContent =
+          "Use the video's native controls to try PiP.";
+      }
+    } catch (error) {
+      status.textContent =
+        "PiP error: " + error.name + " — " + error.message;
+    }
+  });
+</script>
+</body></html>
